@@ -1,0 +1,17 @@
+
+stream destroy --name fileevents
+
+module delete processor:cxpStreamProcessor;
+
+module upload --file /home/cxp/big-data-cxp/cxp-ingest-stream/build/libs/cxp-ingest-stream-1.0.0.BUILD-SNAPSHOT.jar  --name cxpStreamProcessor --type processor
+
+# Test SQL output
+stream create --name fileevents --definition "file --dir=/home/cxp/Data/inbox --pattern=*.txt --preventDuplicates=false --ref=false --fixedDelay=10 --outputType=text/plain | transform --expression=#root.headers.get('file_name')+'|'+payload.toString() | cxpStreamProcessor --inputType=text/plain | log" --deploy
+
+# Load data into table
+stream create --name fileevents --definition "file --dir=/home/cxp/Data/inbox --pattern=*.* --preventDuplicates=false --ref=true --outputType=text/plain | cxpFileSplitter | cxpStreamProcessor | shell --command='psql cxpdev'" --deploy
+
+stream create --name fileevents --definition "file --dir=/home/cxp/Data/inbox --pattern=*.* --preventDuplicates=false --ref=false --fixedDelay=10 --outputType=text/plain | metadata-retriever | splitter --expression=payload.split(headers.get('row_delimiter')) | script --script=file:///home/cxp/big-data-cxp/cxp-ingest-stream/scripts/jsonPayload.groovy | cxpStreamProcessor | log" --deploy
+
+# The following is currently not supported 
+stream create --name fileevents --definition "file --dir=/home/cxp/Data/inbox --pattern=*.* --preventDuplicates=false --ref=true --outputType=text/plain | cxpFileSplitter | cxpStreamProcessor | jdbc --tableName=events --columns='customer_id, customer_id_type_id, value, event_type_id'" --deploy

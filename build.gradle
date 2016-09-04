@@ -1,0 +1,105 @@
+// Build for a particular environment using `gradle -Penv=local build`
+
+ext {
+    environment = 'dev'
+}
+
+buildscript {
+    ext {
+        springXdVersion = '1.2.1.RELEASE'
+    }
+    repositories {
+        maven {
+            url "${artifactory_pluginsUrl}"
+            credentials {
+                username = "${artifactory_user}"
+                password = "${artifactory_password}"
+            }
+        }
+    }
+    dependencies {
+        //Check for the latest version here: http://plugins.gradle.org/plugin/com.jfrog.artifactory
+        classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:3.1.1'
+        classpath "org.springframework.xd:spring-xd-module-plugin:${springXdVersion}"
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'idea'
+apply plugin: 'spring-xd-module'
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.artifactory'
+
+group = 'io.metamorphic'
+version = '1.0'
+description = 'Spring XD processor module'
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+loadConfiguration()
+
+def loadConfiguration() {
+    def environment = hasProperty('env') ? env : 'dev'
+    setProperty 'environment', environment
+}
+
+apply from: 'tasks.gradle'
+
+processResources.dependsOn copyConfiguration
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
+
+configurations {
+    provided
+    compile.extendsFrom provided
+}
+
+jar {
+    baseName = 'cxp-ingest-stream'
+    version = '1.0'
+}
+
+artifactory {
+    contextUrl = "${artifactory_contextUrl}"   //The base Artifactory URL if not overridden by the publisher/resolver
+    publish {
+        repository {
+            repoKey = 'libs-release-local'
+            username = "${artifactory_user}"
+            password = "${artifactory_password}"
+            maven = true
+        }
+        defaults {
+            publications ('mavenJava')
+        }
+    }
+    resolve {
+        repository {
+            repoKey = 'libs-release'
+            username = "${artifactory_user}"
+            password = "${artifactory_password}"
+            maven = true
+        }
+    }
+}
+
+dependencies {
+    compile 'io.metamorphic:cxp-metadata-provider:1.0'
+    compile 'io.metamorphic:cxp-transform:1.0'
+    provided 'org.springframework.boot:spring-boot-starter-jdbc'
+    provided 'org.postgresql:postgresql:9.4-1201-jdbc4'
+	compile files('libs/opencsv-2.4-SNAPSHOT.jar')
+}
+
+// see https://github.com/spring-projects/spring-boot/issues/2679
+// must be a spring-boot dependency from spring-xd-module-plugin
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.5'
+    distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-all.zip"
+}

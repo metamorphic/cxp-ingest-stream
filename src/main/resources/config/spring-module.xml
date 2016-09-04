@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:int="http://www.springframework.org/schema/integration"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <context:property-placeholder location="classpath:application.properties" ignore-resource-not-found="false"/>
+
+    <int:channel id="input"/>
+
+    <int:splitter input-channel="input" output-channel="output">
+        <bean class="cxp.ingest.MetadataDrivenStreamProcessor">
+            <constructor-arg value="${metastoreApiUrl}"/>
+            <constructor-arg value="${outputFormat}"/>
+            <constructor-arg value="${columnDelimiter}"/>
+            <constructor-arg value="${metadataCacheLife}"/>
+            <property name="metadataProvider" value="metadataProvider"/>
+            <property name="transformer" value="transformer"/>
+        </bean>
+    </int:splitter>
+
+    <int:channel id="output"/>
+
+    <bean id="transformer" class="cxp.ingest.MetadataDrivenItemTransformerImpl">
+        <property name="parser">
+            <bean class="org.springframework.expression.spel.standard.SpelExpressionParser"/>
+        </property>
+        <property name="metadataProvider" ref="metadataProvider"/>
+    </bean>
+
+    <bean id="metadataProvider" class="cxp.ingest.MetadataProviderImpl">
+        <property name="datasetUrl" value="${dataset-lookup-url}"/>
+        <property name="idResolutionUrl" value="${customer-id-resolution-url}"/>
+        <property name="jobUrl" value="${jobs-url}"/>
+        <property name="testJobUrl" value="${test-jobs-url}"/>
+        <property name="dateFormatsUrl" value="${date-formats-url}"/>
+        <property name="jdbcTemplate" ref="jdbcTemplate"/>
+    </bean>
+
+    <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+    <bean id="dataSource" class="org.apache.tomcat.jdbc.pool.DataSource" destroy-method="close">
+        <property name="driverClassName" value="${cxp.datasource.driver-class-name}"/>
+        <property name="url" value="${cxp.datasource.url}"/>
+        <property name="username" value="${cxp.datasource.username}"/>
+        <property name="password" value="${cxp.datasource.password}"/>
+    </bean>
+
+</beans>
